@@ -12,3 +12,10 @@ numpy
 pandas
 requests
 python-dotenv
+# NLP Dependencies for Character Extraction
+spacy
+textblob
+nltk
+regex
+transformers
+torch

@@ -12,6 +12,14 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from config import CHUNK_SIZE, CHUNK_OVERLAP, MANUSCRIPTS_DIR, SUPPORTED_FORMATS
 
+# Import character extraction functionality
+try:
+    from character_extractor import CharacterExtractor
+    CHARACTER_EXTRACTION_AVAILABLE = True
+except ImportError:
+    CHARACTER_EXTRACTION_AVAILABLE = False
+    print("⚠️ Character extraction dependencies not available. Please install: pip install spacy textblob nltk")
+
 class DocumentProcessor:
     """Handles manuscript ingestion and processing for RAG"""
     
@@ -22,6 +30,8 @@ class DocumentProcessor:
             length_function=len,
             separators=["\n\n", "\n", ". ", " ", ""]
         )
+        # Initialize character extractor if available
+        self.character_extractor = CharacterExtractor() if CHARACTER_EXTRACTION_AVAILABLE else None
     
     def extract_text_from_file(self, file_path: str) -> str:
         """Extract text from various file formats"""
@@ -54,7 +64,7 @@ class DocumentProcessor:
     
     def _extract_from_docx(self, file_path: Path) -> str:
         """Extract text from .docx file"""
-        doc = docx.Document(file_path)
+        doc = docx.Document(str(file_path))
         text = []
         for paragraph in doc.paragraphs:
             if paragraph.text.strip():
@@ -100,10 +110,26 @@ class DocumentProcessor:
             
             self._save_manuscript_info(manuscript_id, manuscript_info)
             
+            # Extract characters automatically if character extraction is available
+            extracted_characters = []
+            if self.character_extractor:
+                try:
+                    print("🤖 Extracting characters automatically...")
+                    extracted_characters = self.character_extractor.extract_characters_from_text(text, manuscript_id)
+                    print(f"✅ Extracted {len(extracted_characters)} characters")
+                    # Show what was extracted
+                    for char in extracted_characters:
+                        print(f"   - {char['name']}: {char.get('role', 'No role')} (confidence: {char.get('extraction_confidence', 0.5):.1%})")
+                except Exception as e:
+                    print(f"⚠️ Character extraction failed: {e}")
+                    # If extraction fails completely, ensure we still return empty list
+                    extracted_characters = []
+            
             return {
                 'documents': documents,
                 'info': manuscript_info,
-                'text': text
+                'text': text,
+                'extracted_characters': extracted_characters
             }
             
         except Exception as e:
